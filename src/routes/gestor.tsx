@@ -314,7 +314,7 @@ function GestorPageInner() {
       <AppHeader />
       <div className="grid flex-1 gap-0 lg:grid-cols-[320px_1fr_380px]">
         {/* Routes sidebar */}
-        <aside className="border-r border-border bg-sidebar/60 p-4 backdrop-blur lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
+        <aside className="hidden border-r border-border bg-sidebar/60 p-4 backdrop-blur lg:sticky lg:top-16 lg:block lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               Rotas
