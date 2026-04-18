@@ -29,14 +29,18 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "Rota  Inteligente" },
+      { name: "description", content: "Rota  Inteligente" },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "Rota  Inteligente" },
+      { property: "og:description", content: "Rota  Inteligente" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Rota  Inteligente" },
+      { name: "twitter:description", content: "Rota  Inteligente" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1f924433-1817-4ec8-9984-41bc61770b61/id-preview-81fb39c2--beb82aad-ae6d-45c7-8f00-189128c3fccb.lovable.app-1776485557588.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1f924433-1817-4ec8-9984-41bc61770b61/id-preview-81fb39c2--beb82aad-ae6d-45c7-8f00-189128c3fccb.lovable.app-1776485557588.png" },
     ],
     links: [
       {
