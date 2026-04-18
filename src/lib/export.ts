@@ -21,6 +21,7 @@ export interface DemoExport {
   routes: Array<{
     name: string;
     description?: string;
+    cyclic?: boolean;
     totalWaypoints: number;
     waypoints: Array<{
       order: number;
@@ -64,6 +65,7 @@ export function exportRoutesAsDemo(routes: RouteData[]): DemoExport {
     routes: routes.map((r) => ({
       name: r.name,
       description: r.description,
+      cyclic: r.cyclic,
       totalWaypoints: r.waypoints.length,
       waypoints: r.waypoints.map((w, i) => ({
         order: i + 1,
@@ -147,6 +149,7 @@ export function importRoutesFromJson(json: unknown): RouteData[] {
       id: uid(),
       name: String(r.name ?? "Rota importada"),
       description: r.description,
+      cyclic: Boolean((r as { cyclic?: boolean }).cyclic),
       waypoints,
       createdAt: now,
       updatedAt: now,
