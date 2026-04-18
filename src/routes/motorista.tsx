@@ -545,10 +545,20 @@ function MotoristaPage() {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="gap-2">
-                      <Download className="h-4 w-4" strokeWidth={2} /> Baixar rota
+                      <MapPinned className="h-4 w-4" strokeWidth={2} /> Rota
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuContent align="end" className="w-60">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        const ok = openRouteInGoogleMaps(active);
+                        if (ok) toast.success("Abrindo no Google Maps");
+                        else toast.error("Rota sem waypoints");
+                      }}
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" strokeWidth={1.75} />
+                      Abrir no Google Maps
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => {
                         downloadRouteVisual(active);
