@@ -191,6 +191,35 @@ function MotoristaPage() {
     }
   }
 
+  // === Navegação real por GPS ===
+  function startGpsNavigation() {
+    if (!active || wps.length === 0) return;
+    if (!geo.supported) {
+      toast.error("GPS não suportado neste dispositivo");
+      return;
+    }
+    setGpsMode(true);
+    setRunning(true);
+    setStepIndex(0);
+    overspeedSpokenRef.current = false;
+    lastSpokenStepRef.current = -1;
+    geo.start();
+    speak("Navegação por GPS iniciada. Aguardando sinal de localização.", { priority: true });
+    requestAnimationFrame(() => {
+      mapSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function stopGpsNavigation() {
+    setGpsMode(false);
+    setRunning(false);
+    geo.stop();
+    setBusPos(null);
+    setSpeed(0);
+    setOverspeedAlert(false);
+    stop();
+  }
+
   // Loop de aproximação de velocidade ao alvo, com pequena variação
   useEffect(() => {
     if (!running) return;
