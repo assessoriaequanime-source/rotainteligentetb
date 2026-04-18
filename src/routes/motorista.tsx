@@ -293,8 +293,8 @@ function MotoristaPage() {
         </section>
 
         {/* Cockpit panel */}
-        <aside className="border-l border-border bg-sidebar/60 backdrop-blur lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
-          <div className="space-y-5 p-5">
+        <aside className="border-t border-border bg-sidebar/60 backdrop-blur lg:border-l lg:border-t-0 lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
+          <div className="space-y-4 p-4 sm:space-y-5 sm:p-5">
             {/* Telemetria */}
             <div className="rounded-2xl border border-border bg-gradient-to-br from-surface to-surface-2 p-5 shadow-[var(--shadow-elevated)]">
               <div className="mb-3 flex items-center justify-between">
