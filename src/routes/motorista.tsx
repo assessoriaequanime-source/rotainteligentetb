@@ -68,13 +68,17 @@ function MotoristaPage() {
   const [busPos, setBusPos] = useState<{ lat: number; lng: number } | null>(
     null,
   );
-  const [speed, setSpeed] = useState(0); // km/h simulado
+  const [speed, setSpeed] = useState(0); // km/h (simulado OU real)
   const [overspeedAlert, setOverspeedAlert] = useState(false);
+  // GPS: "off" = simulação, "on" = navegação real por geolocalização
+  const [gpsMode, setGpsMode] = useState(false);
 
   const { speak, stop } = useSpeech();
+  const geo = useGeolocation();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const speedTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const overspeedSpokenRef = useRef(false);
+  const lastSpokenStepRef = useRef<number>(-1);
 
   useEffect(() => {
     const r = loadRoutes();
