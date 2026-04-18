@@ -220,9 +220,9 @@ function MotoristaPage() {
     stop();
   }
 
-  // Loop de aproximação de velocidade ao alvo, com pequena variação
+  // Loop de aproximação de velocidade ao alvo (apenas modo simulação)
   useEffect(() => {
-    if (!running) return;
+    if (!running || gpsMode) return;
     speedTickRef.current = setInterval(() => {
       setSpeed((s) => {
         const noise = (Math.random() - 0.45) * 6;
@@ -234,7 +234,60 @@ function MotoristaPage() {
     return () => {
       if (speedTickRef.current) clearInterval(speedTickRef.current);
     };
-  }, [running, targetSpeed]);
+  }, [running, targetSpeed, gpsMode]);
+
+  // === Modo GPS: reage à posição real do dispositivo ===
+  useEffect(() => {
+    if (!gpsMode || !geo.position || wps.length === 0) return;
+
+    const pos = geo.position;
+    setBusPos({ lat: pos.lat, lng: pos.lng });
+    // velocidade real (m/s → km/h). Quando indisponível, mantém valor anterior.
+    if (pos.speed != null && pos.speed >= 0) {
+      setSpeed(Math.round(pos.speed * 3.6));
+    }
+
+    // Encontra waypoint mais próximo dentre os ainda não visitados (ou todos se cíclico)
+    const isCyclic = !!active?.cyclic;
+    const startIdx = stepIndex;
+    let nearestIdx = startIdx;
+    let nearestDist = Infinity;
+    const limit = isCyclic ? wps.length : wps.length;
+    for (let k = 0; k < limit; k++) {
+      const idx = (startIdx + k) % wps.length;
+      const d = distanceMeters(pos, wps[idx]);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearestIdx = idx;
+      }
+      // Só procura à frente; se já passou de algum, ele continua avançando
+      if (!isCyclic && idx >= wps.length - 1) break;
+    }
+
+    // Se chegou perto do próximo waypoint (< 40m), avança
+    const APPROACH_M = 40;
+    if (nearestIdx !== stepIndex && nearestDist < APPROACH_M) {
+      setStepIndex(nearestIdx);
+      overspeedSpokenRef.current = false;
+      if (lastSpokenStepRef.current !== nearestIdx) {
+        lastSpokenStepRef.current = nearestIdx;
+        speakWp(wps[nearestIdx]);
+      }
+      // Verifica conclusão
+      if (!isCyclic && nearestIdx === wps.length - 1) {
+        if (!muted) speak("Você chegou ao destino. Bom trabalho.", { priority: true });
+        setRunning(false);
+        geo.stop();
+        setGpsMode(false);
+      }
+    } else if (lastSpokenStepRef.current === -1) {
+      // Fala a primeira orientação assim que recebe o primeiro fix
+      lastSpokenStepRef.current = nearestIdx;
+      setStepIndex(nearestIdx);
+      speakWp(wps[nearestIdx]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geo.position, gpsMode]);
 
   // Alerta de excesso
   useEffect(() => {
