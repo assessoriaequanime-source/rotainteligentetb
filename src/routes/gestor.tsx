@@ -17,7 +17,18 @@ import {
   Upload,
   FileJson,
   FileText,
+  ArrowUp,
+  ArrowDown,
+  List,
 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import {
   downloadRouteDemo,
   downloadAllRoutesDemo,
