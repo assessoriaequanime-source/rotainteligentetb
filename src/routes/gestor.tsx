@@ -72,7 +72,17 @@ const MANEUVERS: ManeuverType[] = [
   "exit", "terminal", "uturn", "merge", "end",
 ];
 
+import GestorAuthGate from "@/components/GestorAuthGate";
+
 function GestorPage() {
+  return (
+    <GestorAuthGate>
+      <GestorPageInner />
+    </GestorAuthGate>
+  );
+}
+
+function GestorPageInner() {
   const [routes, setRoutes] = useState<RouteData[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedWpId, setSelectedWpId] = useState<string | null>(null);
