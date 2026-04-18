@@ -653,9 +653,9 @@ function MotoristaPage() {
             <div className="flex items-start gap-2 rounded-lg border border-border bg-surface p-3 text-[11px] text-muted-foreground">
               <Satellite className="mt-0.5 h-4 w-4 shrink-0 text-primary" strokeWidth={1.5} />
               <p>
-                <span className="font-medium text-foreground">Próxima evolução:</span>{" "}
-                substituir simulação pela posição real do GPS do dispositivo
-                (<code className="font-mono">watchPosition</code>).
+                <span className="font-medium text-foreground">Modo simulação</span> demonstra a rota com voz didática.{" "}
+                <span className="font-medium text-foreground">Modo GPS</span> usa a posição real do dispositivo e
+                avança automaticamente ao se aproximar de cada ponto (≈ 40 m).
               </p>
             </div>
           </div>
