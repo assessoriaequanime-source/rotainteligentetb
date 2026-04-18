@@ -43,7 +43,10 @@ export const Route = createFileRoute("/motorista")({
   component: MotoristaPage,
 });
 
-const STEP_MS = 5000;
+// Tempo MÍNIMO entre etapas (ms). O tempo real é calculado dinamicamente
+// a partir da duração estimada da fala + buffer didático.
+const MIN_STEP_MS = 8000;
+const STEP_BUFFER_MS = 2500; // tempo extra após o fim da fala para o motorista assimilar
 
 function MotoristaPage() {
   const [routes, setRoutes] = useState<RouteData[]>([]);
