@@ -231,6 +231,31 @@ function GestorPageInner() {
     if (selectedWpId === id) setSelectedWpId(null);
   }
 
+  function moveWaypointOrder(id: string, dir: -1 | 1) {
+    updateActive((r) => {
+      const idx = r.waypoints.findIndex((w) => w.id === id);
+      if (idx === -1) return r;
+      const newIdx = idx + dir;
+      if (newIdx < 0 || newIdx >= r.waypoints.length) return r;
+      const next = [...r.waypoints];
+      [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
+      return { ...r, waypoints: next };
+    });
+  }
+
+  function duplicateWaypoint(id: string) {
+    updateActive((r) => {
+      const idx = r.waypoints.findIndex((w) => w.id === id);
+      if (idx === -1) return r;
+      const src = r.waypoints[idx];
+      const copy: Waypoint = { ...src, id: uid() };
+      const next = [...r.waypoints];
+      next.splice(idx + 1, 0, copy);
+      return { ...r, waypoints: next };
+    });
+    toast.success("Waypoint duplicado");
+  }
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   function handleExportAll() {
