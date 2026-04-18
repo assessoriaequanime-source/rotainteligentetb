@@ -208,6 +208,54 @@ function GestorPage() {
     if (selectedWpId === id) setSelectedWpId(null);
   }
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  function handleExportAll() {
+    if (routes.length === 0) {
+      toast.error("Nenhuma rota para exportar");
+      return;
+    }
+    downloadAllRoutesDemo(routes);
+    toast.success("Arquivo demonstrativo baixado");
+  }
+
+  function handleExportRoute(r: RouteData) {
+    downloadRouteDemo(r);
+    toast.success(`"${r.name}" baixada`);
+  }
+
+  function handleImportClick() {
+    fileInputRef.current?.click();
+  }
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const imported = importRoutesFromJson(json);
+      if (imported.length === 0) {
+        toast.error("Arquivo não contém rotas válidas");
+        return;
+      }
+      const next = [...routes, ...imported];
+      persist(next);
+      setActiveId(imported[0].id);
+      setActiveRouteId(imported[0].id);
+      toast.success(
+        imported.length === 1
+          ? "Rota importada com sucesso"
+          : `${imported.length} rotas importadas`,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro ao importar";
+      toast.error(`Falha na importação: ${msg}`);
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   return (
     <div className="flex min-h-screen flex-col">
       <AppHeader />
