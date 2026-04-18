@@ -24,7 +24,7 @@ import {
 } from "@/lib/storage";
 import { maneuverIcon } from "@/lib/maneuverIcons";
 import { Button } from "@/components/ui/button";
-import { useSpeech } from "@/hooks/useSpeech";
+import { useSpeech, estimateSpeechDurationMs } from "@/hooks/useSpeech";
 
 const RouteMap = lazy(() => import("@/components/RouteMap"));
 
