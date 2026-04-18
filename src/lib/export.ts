@@ -325,6 +325,55 @@ function renderRouteVisualHtml(route: RouteData): string {
 </html>`;
 }
 
+// ===== Google Maps: link de navegação direto =====
+
+/**
+ * Gera uma URL do Google Maps Directions com a rota completa.
+ * Limite oficial do Google: origem + destino + até 8 waypoints intermediários.
+ * Quando a rota tem mais waypoints, fazemos downsample uniforme preservando
+ * sempre o primeiro e o último ponto.
+ */
+export function buildGoogleMapsRouteUrl(
+  route: RouteData,
+  opts: { travelMode?: "driving" | "walking" | "bicycling" | "transit" } = {},
+): string | null {
+  const wps = route.waypoints;
+  if (wps.length === 0) return null;
+
+  const MAX_INTERMEDIATE = 8;
+  let points = wps;
+
+  if (wps.length > MAX_INTERMEDIATE + 2) {
+    // downsample: mantém primeiro, último e amostragem uniforme no meio
+    const first = wps[0];
+    const last = wps[wps.length - 1];
+    const middle: Waypoint[] = [];
+    const step = (wps.length - 2) / (MAX_INTERMEDIATE + 1);
+    for (let i = 1; i <= MAX_INTERMEDIATE; i++) {
+      const idx = Math.round(i * step);
+      if (idx > 0 && idx < wps.length - 1) middle.push(wps[idx]);
+    }
+    points = [first, ...middle, last];
+  }
+
+  // Em rota cíclica, repete o primeiro waypoint como destino final
+  if (route.cyclic && wps.length > 1) {
+    points = [...points, wps[0]];
+  }
+
+  const coords = points.map((w) => `${w.lat.toFixed(6)},${w.lng.toFixed(6)}`);
+  const path = coords.join("/");
+  const mode = opts.travelMode ?? "driving";
+  return `https://www.google.com/maps/dir/${path}/data=!4m2!4m1!3e0?travelmode=${mode}`;
+}
+
+export function openRouteInGoogleMaps(route: RouteData) {
+  const url = buildGoogleMapsRouteUrl(route);
+  if (!url) return false;
+  window.open(url, "_blank", "noopener,noreferrer");
+  return true;
+}
+
 export function downloadRouteVisual(route: RouteData) {
   const html = renderRouteVisualHtml(route);
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
