@@ -213,7 +213,7 @@ function MotoristaPage() {
               </div>
             }
           >
-            <RouteMap waypoints={wps} busPosition={busPos} />
+            <RouteMap waypoints={wps} busPosition={busPos} cyclic={active.cyclic} immersive={running} />
           </Suspense>
 
           {/* Route picker overlay */}
