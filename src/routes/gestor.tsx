@@ -525,7 +525,7 @@ function GestorPageInner() {
         </section>
 
         {/* Waypoint editor */}
-        <aside className="border-l border-border bg-sidebar/60 backdrop-blur lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
+        <aside className="hidden border-l border-border bg-sidebar/60 backdrop-blur lg:sticky lg:top-16 lg:block lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
           <AnimatePresence mode="wait">
             {selectedWp && active ? (
               <motion.div
