@@ -396,7 +396,36 @@ function GestorPage() {
             })}
           </ul>
 
-          <div className="mt-6 space-y-2">
+          {active && (
+            <div className="mt-6">
+              <label className="flex cursor-pointer items-center justify-between rounded-xl border border-border bg-surface p-3 text-xs">
+                <span className="flex items-center gap-2">
+                  <span className="grid h-7 w-7 place-items-center rounded-md bg-accent/15 text-accent">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                      <path d="M21 12a9 9 0 1 1-3-6.7" />
+                      <path d="M21 4v5h-5" />
+                    </svg>
+                  </span>
+                  <span>
+                    <span className="block font-medium text-foreground">Trajeto cíclico</span>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      fecha o percurso no início
+                    </span>
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={!!active.cyclic}
+                  onChange={(e) =>
+                    updateActive((r) => ({ ...r, cyclic: e.target.checked }))
+                  }
+                  className="h-4 w-4 accent-primary"
+                />
+              </label>
+            </div>
+          )}
+
+          <div className="mt-3 space-y-2">
             <div className="rounded-xl border border-border bg-surface p-3">
               <div className="flex items-start gap-2 text-xs text-muted-foreground">
                 <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} />
