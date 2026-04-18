@@ -32,8 +32,8 @@ export interface Route {
   updatedAt: number;
 }
 
-const ROUTES_KEY = "ra_routes_v1";
-const ACTIVE_KEY = "ra_active_route_id_v1";
+const ROUTES_KEY = "ra_routes_v2";
+const ACTIVE_KEY = "ra_active_route_id_v2";
 
 export function uid(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
