@@ -556,7 +556,7 @@ function CurrentStep({
           </p>
           {wp.observation && (
             <div className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
-              <Gauge className="mt-0.5 h-3 w-3 shrink-0" strokeWidth={1.75} />
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" strokeWidth={1.75} />
               <span>{wp.observation}</span>
             </div>
           )}
