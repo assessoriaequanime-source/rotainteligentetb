@@ -156,6 +156,7 @@ export default function RouteMap({
       />
       {editable && <ClickHandler onAdd={onAddWaypoint} />}
       <FitBounds waypoints={waypoints} active={!!busPosition} />
+      <ImmersiveTilt active={!!immersive} />
       {busPosition && <FollowBus pos={busPosition} immersive={immersive} />}
 
       {closedPolyline.length > 1 && (
