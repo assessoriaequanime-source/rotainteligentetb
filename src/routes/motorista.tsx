@@ -6,12 +6,14 @@ import {
   Square,
   Volume2,
   VolumeX,
-  Gauge,
   AlertTriangle,
   Navigation,
   CheckCircle2,
   Satellite,
   Route as RouteIcon,
+  Download,
+  FileText,
+  MapPinned,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import {
@@ -24,7 +26,16 @@ import {
 } from "@/lib/storage";
 import { maneuverIcon } from "@/lib/maneuverIcons";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 import { useSpeech, estimateSpeechDurationMs } from "@/hooks/useSpeech";
+import { useGeolocation, distanceMeters } from "@/hooks/useGeolocation";
+import { downloadRouteDemo, downloadRouteVisual } from "@/lib/export";
 
 const RouteMap = lazy(() => import("@/components/RouteMap"));
 
@@ -57,13 +68,17 @@ function MotoristaPage() {
   const [busPos, setBusPos] = useState<{ lat: number; lng: number } | null>(
     null,
   );
-  const [speed, setSpeed] = useState(0); // km/h simulado
+  const [speed, setSpeed] = useState(0); // km/h (simulado OU real)
   const [overspeedAlert, setOverspeedAlert] = useState(false);
+  // GPS: "off" = simulação, "on" = navegação real por geolocalização
+  const [gpsMode, setGpsMode] = useState(false);
 
   const { speak, stop } = useSpeech();
+  const geo = useGeolocation();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const speedTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const overspeedSpokenRef = useRef(false);
+  const lastSpokenStepRef = useRef<number>(-1);
 
   useEffect(() => {
     const r = loadRoutes();
@@ -176,9 +191,38 @@ function MotoristaPage() {
     }
   }
 
-  // Loop de aproximação de velocidade ao alvo, com pequena variação
+  // === Navegação real por GPS ===
+  function startGpsNavigation() {
+    if (!active || wps.length === 0) return;
+    if (!geo.supported) {
+      toast.error("GPS não suportado neste dispositivo");
+      return;
+    }
+    setGpsMode(true);
+    setRunning(true);
+    setStepIndex(0);
+    overspeedSpokenRef.current = false;
+    lastSpokenStepRef.current = -1;
+    geo.start();
+    speak("Navegação por GPS iniciada. Aguardando sinal de localização.", { priority: true });
+    requestAnimationFrame(() => {
+      mapSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function stopGpsNavigation() {
+    setGpsMode(false);
+    setRunning(false);
+    geo.stop();
+    setBusPos(null);
+    setSpeed(0);
+    setOverspeedAlert(false);
+    stop();
+  }
+
+  // Loop de aproximação de velocidade ao alvo (apenas modo simulação)
   useEffect(() => {
-    if (!running) return;
+    if (!running || gpsMode) return;
     speedTickRef.current = setInterval(() => {
       setSpeed((s) => {
         const noise = (Math.random() - 0.45) * 6;
@@ -190,7 +234,60 @@ function MotoristaPage() {
     return () => {
       if (speedTickRef.current) clearInterval(speedTickRef.current);
     };
-  }, [running, targetSpeed]);
+  }, [running, targetSpeed, gpsMode]);
+
+  // === Modo GPS: reage à posição real do dispositivo ===
+  useEffect(() => {
+    if (!gpsMode || !geo.position || wps.length === 0) return;
+
+    const pos = geo.position;
+    setBusPos({ lat: pos.lat, lng: pos.lng });
+    // velocidade real (m/s → km/h). Quando indisponível, mantém valor anterior.
+    if (pos.speed != null && pos.speed >= 0) {
+      setSpeed(Math.round(pos.speed * 3.6));
+    }
+
+    // Encontra waypoint mais próximo dentre os ainda não visitados (ou todos se cíclico)
+    const isCyclic = !!active?.cyclic;
+    const startIdx = stepIndex;
+    let nearestIdx = startIdx;
+    let nearestDist = Infinity;
+    const limit = isCyclic ? wps.length : wps.length;
+    for (let k = 0; k < limit; k++) {
+      const idx = (startIdx + k) % wps.length;
+      const d = distanceMeters(pos, wps[idx]);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearestIdx = idx;
+      }
+      // Só procura à frente; se já passou de algum, ele continua avançando
+      if (!isCyclic && idx >= wps.length - 1) break;
+    }
+
+    // Se chegou perto do próximo waypoint (< 40m), avança
+    const APPROACH_M = 40;
+    if (nearestIdx !== stepIndex && nearestDist < APPROACH_M) {
+      setStepIndex(nearestIdx);
+      overspeedSpokenRef.current = false;
+      if (lastSpokenStepRef.current !== nearestIdx) {
+        lastSpokenStepRef.current = nearestIdx;
+        speakWp(wps[nearestIdx]);
+      }
+      // Verifica conclusão
+      if (!isCyclic && nearestIdx === wps.length - 1) {
+        if (!muted) speak("Você chegou ao destino. Bom trabalho.", { priority: true });
+        setRunning(false);
+        geo.stop();
+        setGpsMode(false);
+      }
+    } else if (lastSpokenStepRef.current === -1) {
+      // Fala a primeira orientação assim que recebe o primeiro fix
+      lastSpokenStepRef.current = nearestIdx;
+      setStepIndex(nearestIdx);
+      speakWp(wps[nearestIdx]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geo.position, gpsMode]);
 
   // Alerta de excesso
   useEffect(() => {
@@ -398,35 +495,102 @@ function MotoristaPage() {
               <CurrentStep wp={currentWp} index={stepIndex} total={wps.length} />
             )}
 
-            {/* Controls */}
-            <div className="flex gap-2">
+            {/* Controls — Simulação + Navegação real + Mudo */}
+            <div className="space-y-2">
               {!running ? (
-                <Button onClick={startSimulation} className="flex-1 gap-2" size="lg">
-                  <Play className="h-4 w-4" strokeWidth={2} /> Simular
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button onClick={startSimulation} size="lg" className="gap-2">
+                    <Play className="h-4 w-4" strokeWidth={2} /> Simular
+                  </Button>
+                  <Button
+                    onClick={startGpsNavigation}
+                    size="lg"
+                    variant="outline"
+                    className="gap-2 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
+                    disabled={!geo.supported}
+                    title={geo.supported ? "Iniciar navegação por GPS" : "GPS não suportado"}
+                  >
+                    <MapPinned className="h-4 w-4" strokeWidth={2} /> Navegar GPS
+                  </Button>
+                </div>
               ) : (
                 <Button
-                  onClick={() => stopSimulation()}
+                  onClick={() => (gpsMode ? stopGpsNavigation() : stopSimulation())}
                   variant="outline"
-                  className="flex-1 gap-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className="w-full gap-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   size="lg"
                 >
-                  <Square className="h-4 w-4" strokeWidth={2} /> Parar
+                  <Square className="h-4 w-4" strokeWidth={2} /> Parar {gpsMode ? "navegação" : "simulação"}
                 </Button>
               )}
-              <Button
-                onClick={() => setMuted((m) => !m)}
-                variant="outline"
-                size="lg"
-                className="gap-2"
-                title={muted ? "Ativar voz" : "Silenciar voz"}
-              >
-                {muted ? (
-                  <VolumeX className="h-4 w-4" strokeWidth={2} />
-                ) : (
-                  <Volume2 className="h-4 w-4" strokeWidth={2} />
-                )}
-              </Button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  onClick={() => setMuted((m) => !m)}
+                  variant="outline"
+                  className="gap-2"
+                  title={muted ? "Ativar voz" : "Silenciar voz"}
+                >
+                  {muted ? (
+                    <>
+                      <VolumeX className="h-4 w-4" strokeWidth={2} /> Voz off
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="h-4 w-4" strokeWidth={2} /> Voz on
+                    </>
+                  )}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      <Download className="h-4 w-4" strokeWidth={2} /> Baixar rota
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        downloadRouteVisual(active);
+                        toast.success("Demonstrativo visual baixado");
+                      }}
+                    >
+                      <FileText className="mr-2 h-4 w-4" strokeWidth={1.75} />
+                      Demonstrativo (HTML/PDF)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        downloadRouteDemo(active);
+                        toast.success("Rota baixada (JSON)");
+                      }}
+                    >
+                      <Download className="mr-2 h-4 w-4" strokeWidth={1.75} />
+                      Dados JSON
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Status GPS */}
+              {gpsMode && (
+                <div
+                  className={`flex items-center gap-2 rounded-lg border p-2.5 text-xs ${
+                    geo.error
+                      ? "border-destructive/40 bg-destructive/10 text-destructive"
+                      : geo.position
+                        ? "border-success/40 bg-success/10 text-success"
+                        : "border-primary/40 bg-primary/10 text-primary"
+                  }`}
+                >
+                  <Satellite className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+                  <span className="flex-1 truncate">
+                    {geo.error
+                      ? geo.error
+                      : geo.position
+                        ? `Sinal GPS · ±${Math.round(geo.position.accuracy)}m`
+                        : "Aguardando sinal de GPS…"}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Step list */}
@@ -489,9 +653,9 @@ function MotoristaPage() {
             <div className="flex items-start gap-2 rounded-lg border border-border bg-surface p-3 text-[11px] text-muted-foreground">
               <Satellite className="mt-0.5 h-4 w-4 shrink-0 text-primary" strokeWidth={1.5} />
               <p>
-                <span className="font-medium text-foreground">Próxima evolução:</span>{" "}
-                substituir simulação pela posição real do GPS do dispositivo
-                (<code className="font-mono">watchPosition</code>).
+                <span className="font-medium text-foreground">Modo simulação</span> demonstra a rota com voz didática.{" "}
+                <span className="font-medium text-foreground">Modo GPS</span> usa a posição real do dispositivo e
+                avança automaticamente ao se aproximar de cada ponto (≈ 40 m).
               </p>
             </div>
           </div>
@@ -545,7 +709,7 @@ function CurrentStep({
           </p>
           {wp.observation && (
             <div className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
-              <Gauge className="mt-0.5 h-3 w-3 shrink-0" strokeWidth={1.75} />
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" strokeWidth={1.75} />
               <span>{wp.observation}</span>
             </div>
           )}
