@@ -495,35 +495,102 @@ function MotoristaPage() {
               <CurrentStep wp={currentWp} index={stepIndex} total={wps.length} />
             )}
 
-            {/* Controls */}
-            <div className="flex gap-2">
+            {/* Controls — Simulação + Navegação real + Mudo */}
+            <div className="space-y-2">
               {!running ? (
-                <Button onClick={startSimulation} className="flex-1 gap-2" size="lg">
-                  <Play className="h-4 w-4" strokeWidth={2} /> Simular
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button onClick={startSimulation} size="lg" className="gap-2">
+                    <Play className="h-4 w-4" strokeWidth={2} /> Simular
+                  </Button>
+                  <Button
+                    onClick={startGpsNavigation}
+                    size="lg"
+                    variant="outline"
+                    className="gap-2 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
+                    disabled={!geo.supported}
+                    title={geo.supported ? "Iniciar navegação por GPS" : "GPS não suportado"}
+                  >
+                    <MapPinned className="h-4 w-4" strokeWidth={2} /> Navegar GPS
+                  </Button>
+                </div>
               ) : (
                 <Button
-                  onClick={() => stopSimulation()}
+                  onClick={() => (gpsMode ? stopGpsNavigation() : stopSimulation())}
                   variant="outline"
-                  className="flex-1 gap-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className="w-full gap-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   size="lg"
                 >
-                  <Square className="h-4 w-4" strokeWidth={2} /> Parar
+                  <Square className="h-4 w-4" strokeWidth={2} /> Parar {gpsMode ? "navegação" : "simulação"}
                 </Button>
               )}
-              <Button
-                onClick={() => setMuted((m) => !m)}
-                variant="outline"
-                size="lg"
-                className="gap-2"
-                title={muted ? "Ativar voz" : "Silenciar voz"}
-              >
-                {muted ? (
-                  <VolumeX className="h-4 w-4" strokeWidth={2} />
-                ) : (
-                  <Volume2 className="h-4 w-4" strokeWidth={2} />
-                )}
-              </Button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  onClick={() => setMuted((m) => !m)}
+                  variant="outline"
+                  className="gap-2"
+                  title={muted ? "Ativar voz" : "Silenciar voz"}
+                >
+                  {muted ? (
+                    <>
+                      <VolumeX className="h-4 w-4" strokeWidth={2} /> Voz off
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="h-4 w-4" strokeWidth={2} /> Voz on
+                    </>
+                  )}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      <Download className="h-4 w-4" strokeWidth={2} /> Baixar rota
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        downloadRouteVisual(active);
+                        toast.success("Demonstrativo visual baixado");
+                      }}
+                    >
+                      <FileText className="mr-2 h-4 w-4" strokeWidth={1.75} />
+                      Demonstrativo (HTML/PDF)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        downloadRouteDemo(active);
+                        toast.success("Rota baixada (JSON)");
+                      }}
+                    >
+                      <Download className="mr-2 h-4 w-4" strokeWidth={1.75} />
+                      Dados JSON
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Status GPS */}
+              {gpsMode && (
+                <div
+                  className={`flex items-center gap-2 rounded-lg border p-2.5 text-xs ${
+                    geo.error
+                      ? "border-destructive/40 bg-destructive/10 text-destructive"
+                      : geo.position
+                        ? "border-success/40 bg-success/10 text-success"
+                        : "border-primary/40 bg-primary/10 text-primary"
+                  }`}
+                >
+                  <Satellite className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+                  <span className="flex-1 truncate">
+                    {geo.error
+                      ? geo.error
+                      : geo.position
+                        ? `Sinal GPS · ±${Math.round(geo.position.accuracy)}m`
+                        : "Aguardando sinal de GPS…"}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Step list */}
