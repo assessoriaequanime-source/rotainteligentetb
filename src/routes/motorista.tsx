@@ -6,12 +6,14 @@ import {
   Square,
   Volume2,
   VolumeX,
-  Gauge,
   AlertTriangle,
   Navigation,
   CheckCircle2,
   Satellite,
   Route as RouteIcon,
+  Download,
+  FileText,
+  MapPinned,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import {
@@ -24,7 +26,16 @@ import {
 } from "@/lib/storage";
 import { maneuverIcon } from "@/lib/maneuverIcons";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 import { useSpeech, estimateSpeechDurationMs } from "@/hooks/useSpeech";
+import { useGeolocation, distanceMeters } from "@/hooks/useGeolocation";
+import { downloadRouteDemo, downloadRouteVisual } from "@/lib/export";
 
 const RouteMap = lazy(() => import("@/components/RouteMap"));
 
