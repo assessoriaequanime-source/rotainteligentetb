@@ -24,7 +24,7 @@ import {
 } from "@/lib/storage";
 import { maneuverIcon } from "@/lib/maneuverIcons";
 import { Button } from "@/components/ui/button";
-import { useSpeech } from "@/hooks/useSpeech";
+import { useSpeech, estimateSpeechDurationMs } from "@/hooks/useSpeech";
 
 const RouteMap = lazy(() => import("@/components/RouteMap"));
 
@@ -43,7 +43,10 @@ export const Route = createFileRoute("/motorista")({
   component: MotoristaPage,
 });
 
-const STEP_MS = 5000;
+// Tempo MÍNIMO entre etapas (ms). O tempo real é calculado dinamicamente
+// a partir da duração estimada da fala + buffer didático.
+const MIN_STEP_MS = 8000;
+const STEP_BUFFER_MS = 2500; // tempo extra após o fim da fala para o motorista assimilar
 
 function MotoristaPage() {
   const [routes, setRoutes] = useState<RouteData[]>([]);
@@ -81,10 +84,29 @@ function MotoristaPage() {
   const rpm = Math.round(800 + (speed / Math.max(1, targetSpeed)) * 2200);
   const gear = currentWp?.suggestedGear ?? "N";
 
+  // Constrói o texto completo a ser falado em uma etapa
+  function buildSpeech(wp: Waypoint): string {
+    const parts = [
+      wp.instruction,
+      `Marcha sugerida ${wp.suggestedGear}.`,
+      `Velocidade máxima ${wp.maxSpeed} quilômetros por hora.`,
+    ];
+    if (wp.observation && wp.observation.trim()) {
+      parts.push(`Atenção: ${wp.observation}.`);
+    }
+    return parts.join(" ");
+  }
+
+  // Calcula a duração total de uma etapa (fala + buffer), respeitando o mínimo
+  function stepDurationFor(wp: Waypoint): number {
+    const text = buildSpeech(wp);
+    const speechMs = estimateSpeechDurationMs(text, 0.92);
+    return Math.max(MIN_STEP_MS, speechMs + STEP_BUFFER_MS);
+  }
+
   function speakWp(wp: Waypoint) {
     if (muted) return;
-    const tip = `Marcha sugerida ${wp.suggestedGear}. Velocidade máxima ${wp.maxSpeed} quilômetros por hora. ${wp.observation}`;
-    speak(`${wp.instruction}. ${tip}`, { priority: true });
+    speak(buildSpeech(wp), { priority: true });
   }
 
   const mapSectionRef = useRef<HTMLElement | null>(null);
@@ -104,12 +126,13 @@ function MotoristaPage() {
 
     let i = 0;
     let segStart = performance.now();
+    let currentStepMs = stepDurationFor(wps[0]);
     const TICK = 60;
     const isCyclic = !!active.cyclic;
 
     intervalRef.current = setInterval(() => {
       const now = performance.now();
-      const t = Math.min(1, (now - segStart) / STEP_MS);
+      const t = Math.min(1, (now - segStart) / currentStepMs);
       const fromIdx = i >= wps.length ? 0 : i;
       const from = wps[fromIdx];
       // Em rota cíclica, o último segmento volta ao primeiro waypoint
@@ -133,6 +156,7 @@ function MotoristaPage() {
         setBusPos({ lat: wps[safeIndex].lat, lng: wps[safeIndex].lng });
         overspeedSpokenRef.current = false;
         speakWp(wps[safeIndex]);
+        currentStepMs = stepDurationFor(wps[safeIndex]);
       }
     }, TICK);
   }

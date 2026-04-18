@@ -17,7 +17,19 @@ import {
   Upload,
   FileJson,
   FileText,
+  ArrowUp,
+  ArrowDown,
+  List,
+  Layers,
 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import {
   downloadRouteDemo,
   downloadAllRoutesDemo,
@@ -49,6 +61,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import GestorAuthGate from "@/components/GestorAuthGate";
 
 const RouteMap = lazy(() => import("@/components/RouteMap"));
 
@@ -72,7 +85,7 @@ const MANEUVERS: ManeuverType[] = [
   "exit", "terminal", "uturn", "merge", "end",
 ];
 
-import GestorAuthGate from "@/components/GestorAuthGate";
+const GEAR_PRESETS = ["Neutro", "1ª", "2ª", "2ª→3ª", "3ª", "3ª→4ª", "4ª", "4ª→5ª", "5ª"];
 
 function GestorPage() {
   return (
@@ -88,6 +101,8 @@ function GestorPageInner() {
   const [selectedWpId, setSelectedWpId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [routesSheetOpen, setRoutesSheetOpen] = useState(false);
+  const [editorSheetOpen, setEditorSheetOpen] = useState(false);
 
   useEffect(() => {
     const r = loadRoutes();
@@ -104,6 +119,13 @@ function GestorPageInner() {
     () => active?.waypoints.find((w) => w.id === selectedWpId) ?? null,
     [active, selectedWpId],
   );
+
+  // Auto-abre o sheet de editor no mobile quando um waypoint é selecionado
+  useEffect(() => {
+    if (selectedWpId && typeof window !== "undefined" && window.innerWidth < 1024) {
+      setEditorSheetOpen(true);
+    }
+  }, [selectedWpId]);
 
   function persist(next: RouteData[]) {
     setRoutes(next);
@@ -177,6 +199,7 @@ function GestorPageInner() {
     setActiveId(id);
     setActiveRouteId(id);
     setSelectedWpId(null);
+    setRoutesSheetOpen(false);
   }
 
   function handleAddWaypoint(lat: number, lng: number) {
@@ -218,6 +241,31 @@ function GestorPageInner() {
       waypoints: r.waypoints.filter((w) => w.id !== id),
     }));
     if (selectedWpId === id) setSelectedWpId(null);
+  }
+
+  function moveWaypointOrder(id: string, dir: -1 | 1) {
+    updateActive((r) => {
+      const idx = r.waypoints.findIndex((w) => w.id === id);
+      if (idx === -1) return r;
+      const newIdx = idx + dir;
+      if (newIdx < 0 || newIdx >= r.waypoints.length) return r;
+      const next = [...r.waypoints];
+      [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
+      return { ...r, waypoints: next };
+    });
+  }
+
+  function duplicateWaypoint(id: string) {
+    updateActive((r) => {
+      const idx = r.waypoints.findIndex((w) => w.id === id);
+      if (idx === -1) return r;
+      const src = r.waypoints[idx];
+      const copy: Waypoint = { ...src, id: uid() };
+      const next = [...r.waypoints];
+      next.splice(idx + 1, 0, copy);
+      return { ...r, waypoints: next };
+    });
+    toast.success("Waypoint duplicado");
   }
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -273,195 +321,307 @@ function GestorPageInner() {
     }
   }
 
+  // === Painéis reutilizáveis (desktop aside + mobile sheet) ===
+
+  const routesPanel = (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Rotas
+        </h2>
+        <Button size="sm" onClick={handleNewRoute} className="h-8 gap-1.5">
+          <Plus className="h-4 w-4" strokeWidth={2} /> Nova
+        </Button>
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleImportClick}
+          className="h-8 gap-1.5"
+        >
+          <Upload className="h-3.5 w-3.5" strokeWidth={2} /> Importar
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleExportAll}
+          className="h-8 gap-1.5"
+        >
+          <Download className="h-3.5 w-3.5" strokeWidth={2} /> Exportar
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json"
+          onChange={handleImportFile}
+          className="hidden"
+        />
+      </div>
+
+      <ul className="space-y-2">
+        {routes.map((r) => {
+          const isActive = r.id === activeId;
+          return (
+            <li key={r.id}>
+              <div
+                className={`group rounded-xl border p-3 transition-all ${
+                  isActive
+                    ? "border-primary/60 bg-primary/10 shadow-[var(--shadow-glow)]"
+                    : "border-border bg-surface hover:border-border/80"
+                }`}
+              >
+                <button
+                  onClick={() => selectRoute(r.id)}
+                  className="flex w-full items-start justify-between gap-2 text-left"
+                >
+                  <div className="min-w-0 flex-1">
+                    {renaming === r.id ? (
+                      <Input
+                        autoFocus
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onBlur={() => commitRename(r.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitRename(r.id);
+                          if (e.key === "Escape") setRenaming(null);
+                        }}
+                        className="h-7 text-sm"
+                      />
+                    ) : (
+                      <p className="truncate text-sm font-medium">{r.name}</p>
+                    )}
+                    <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {r.waypoints.length} pontos
+                    </p>
+                  </div>
+                  {isActive && (
+                    <ChevronRight
+                      className="h-4 w-4 shrink-0 text-primary"
+                      strokeWidth={2}
+                    />
+                  )}
+                </button>
+                {/* No mobile sempre visível; no desktop aparece no hover */}
+                <div className="mt-2 flex flex-wrap gap-1 lg:opacity-0 lg:transition-opacity lg:group-hover:opacity-100">
+                  <button
+                    onClick={() => {
+                      setRenaming(r.id);
+                      setRenameValue(r.name);
+                    }}
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    title="Renomear"
+                  >
+                    <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  </button>
+                  <button
+                    onClick={() => handleDuplicate(r.id)}
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    title="Duplicar"
+                  >
+                    <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  </button>
+                  <button
+                    onClick={() => handleExportRoute(r)}
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-primary/15 hover:text-primary"
+                    title="Baixar JSON"
+                  >
+                    <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  </button>
+                  <button
+                    onClick={() => handleExportVisual(r)}
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-accent/15 hover:text-accent"
+                    title="Baixar demonstrativo (HTML)"
+                  >
+                    <FileText className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(r.id)}
+                    className="ml-auto rounded-md p-1.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
+                    title="Excluir"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  </button>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      {active && (
+        <div className="mt-6">
+          <label className="flex cursor-pointer items-center justify-between rounded-xl border border-border bg-surface p-3 text-xs">
+            <span className="flex items-center gap-2">
+              <span className="grid h-7 w-7 place-items-center rounded-md bg-accent/15 text-accent">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                  <path d="M21 12a9 9 0 1 1-3-6.7" />
+                  <path d="M21 4v5h-5" />
+                </svg>
+              </span>
+              <span>
+                <span className="block font-medium text-foreground">Trajeto cíclico</span>
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  fecha o percurso no início
+                </span>
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={!!active.cyclic}
+              onChange={(e) =>
+                updateActive((r) => ({ ...r, cyclic: e.target.checked }))
+              }
+              className="h-4 w-4 accent-primary"
+            />
+          </label>
+        </div>
+      )}
+
+      <div className="mt-3 space-y-2">
+        <div className="rounded-xl border border-border bg-surface p-3">
+          <div className="flex items-start gap-2 text-xs text-muted-foreground">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} />
+            <p>
+              <span className="font-medium text-foreground">Dica:</span>{" "}
+              toque no mapa para adicionar um waypoint. Arraste para reposicionar.
+            </p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-border bg-surface p-3">
+          <div className="flex items-start gap-2 text-xs text-muted-foreground">
+            <FileJson className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
+            <p>
+              <span className="font-medium text-foreground">Downloads:</span>{" "}
+              <span className="font-mono text-[10px] uppercase">JSON</span> reimportável
+              e <span className="font-mono text-[10px] uppercase">HTML</span> visual.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const editorPanel = (
+    <AnimatePresence mode="wait">
+      {selectedWp && active ? (
+        <motion.div
+          key={selectedWp.id}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 20 }}
+          transition={{ duration: 0.2 }}
+          className="space-y-5"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Settings2 className="h-4 w-4 text-primary" strokeWidth={1.75} />
+              <h3 className="text-sm font-semibold uppercase tracking-wider">
+                Editar waypoint
+              </h3>
+            </div>
+            <button
+              onClick={() => setSelectedWpId(null)}
+              className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+            >
+              <X className="h-4 w-4" strokeWidth={1.75} />
+            </button>
+          </div>
+
+          <WaypointForm
+            key={selectedWp.id}
+            wp={selectedWp}
+            index={active.waypoints.findIndex((w) => w.id === selectedWp.id)}
+            total={active.waypoints.length}
+            onChange={(patch) => updateWaypoint(selectedWp.id, patch)}
+            onRemove={() => removeWaypoint(selectedWp.id)}
+            onDuplicate={() => duplicateWaypoint(selectedWp.id)}
+            onMove={(dir) => moveWaypointOrder(selectedWp.id, dir)}
+          />
+        </motion.div>
+      ) : active ? (
+        <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Waypoints
+            </h3>
+            <span className="font-mono text-xs text-muted-foreground">
+              {active.waypoints.length}
+            </span>
+          </div>
+          {active.waypoints.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border p-6 text-center">
+              <MapPin className="mx-auto h-8 w-8 text-muted-foreground" strokeWidth={1.5} />
+              <p className="mt-3 text-sm text-muted-foreground">
+                Toque no mapa para adicionar o primeiro ponto.
+              </p>
+            </div>
+          ) : (
+            <ol className="space-y-2">
+              {active.waypoints.map((w, i) => {
+                const Icon = maneuverIcon[w.maneuver];
+                return (
+                  <li key={w.id} className="flex items-stretch gap-2">
+                    <button
+                      onClick={() => setSelectedWpId(w.id)}
+                      className="flex flex-1 items-start gap-3 rounded-lg border border-border bg-surface p-3 text-left transition-all hover:border-primary/50 hover:bg-surface-2"
+                    >
+                      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-primary/15 text-primary">
+                        <Icon className="h-4 w-4" strokeWidth={1.75} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                          #{i + 1} · {maneuverLabel(w.maneuver)}
+                        </span>
+                        <p className="mt-1 line-clamp-2 text-xs text-foreground/90">
+                          {w.instruction}
+                        </p>
+                        <div className="mt-1.5 flex gap-3 font-mono text-[10px] text-muted-foreground">
+                          <span>{w.suggestedGear}</span>
+                          <span>{w.maxSpeed} km/h</span>
+                        </div>
+                      </div>
+                    </button>
+                    <div className="flex flex-col gap-1">
+                      <button
+                        onClick={() => moveWaypointOrder(w.id, -1)}
+                        disabled={i === 0}
+                        className="grid h-7 w-7 place-items-center rounded-md border border-border bg-surface text-muted-foreground transition-colors hover:bg-secondary disabled:opacity-30"
+                        title="Mover para cima"
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      </button>
+                      <button
+                        onClick={() => moveWaypointOrder(w.id, 1)}
+                        disabled={i === active.waypoints.length - 1}
+                        className="grid h-7 w-7 place-items-center rounded-md border border-border bg-surface text-muted-foreground transition-colors hover:bg-secondary disabled:opacity-30"
+                        title="Mover para baixo"
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
+
   return (
     <div className="flex min-h-screen flex-col">
       <AppHeader />
       <div className="grid flex-1 gap-0 lg:grid-cols-[320px_1fr_380px]">
-        {/* Routes sidebar */}
-        <aside className="border-r border-border bg-sidebar/60 p-4 backdrop-blur lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Rotas
-            </h2>
-            <Button
-              size="sm"
-              onClick={handleNewRoute}
-              className="h-8 gap-1.5"
-            >
-              <Plus className="h-4 w-4" strokeWidth={2} /> Nova
-            </Button>
-          </div>
-
-          <div className="mb-4 grid grid-cols-2 gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleImportClick}
-              className="h-8 gap-1.5"
-            >
-              <Upload className="h-3.5 w-3.5" strokeWidth={2} /> Importar
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleExportAll}
-              className="h-8 gap-1.5"
-            >
-              <Download className="h-3.5 w-3.5" strokeWidth={2} /> Exportar
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/json,.json"
-              onChange={handleImportFile}
-              className="hidden"
-            />
-          </div>
-          <ul className="space-y-2">
-            {routes.map((r) => {
-              const isActive = r.id === activeId;
-              return (
-                <li key={r.id}>
-                  <div
-                    className={`group rounded-xl border p-3 transition-all ${
-                      isActive
-                        ? "border-primary/60 bg-primary/10 shadow-[var(--shadow-glow)]"
-                        : "border-border bg-surface hover:border-border/80"
-                    }`}
-                  >
-                    <button
-                      onClick={() => selectRoute(r.id)}
-                      className="flex w-full items-start justify-between gap-2 text-left"
-                    >
-                      <div className="min-w-0 flex-1">
-                        {renaming === r.id ? (
-                          <Input
-                            autoFocus
-                            value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onBlur={() => commitRename(r.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") commitRename(r.id);
-                              if (e.key === "Escape") setRenaming(null);
-                            }}
-                            className="h-7 text-sm"
-                          />
-                        ) : (
-                          <p className="truncate text-sm font-medium">{r.name}</p>
-                        )}
-                        <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                          {r.waypoints.length} pontos
-                        </p>
-                      </div>
-                      {isActive && (
-                        <ChevronRight
-                          className="h-4 w-4 shrink-0 text-primary"
-                          strokeWidth={2}
-                        />
-                      )}
-                    </button>
-                    <div className="mt-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <button
-                        onClick={() => {
-                          setRenaming(r.id);
-                          setRenameValue(r.name);
-                        }}
-                        className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
-                        title="Renomear"
-                      >
-                        <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      </button>
-                      <button
-                        onClick={() => handleDuplicate(r.id)}
-                        className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
-                        title="Duplicar"
-                      >
-                        <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      </button>
-                      <button
-                        onClick={() => handleExportRoute(r)}
-                        className="rounded-md p-1.5 text-muted-foreground hover:bg-primary/15 hover:text-primary"
-                        title="Baixar JSON (modelo demonstrativo)"
-                      >
-                        <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      </button>
-                      <button
-                        onClick={() => handleExportVisual(r)}
-                        className="rounded-md p-1.5 text-muted-foreground hover:bg-accent/15 hover:text-accent"
-                        title="Baixar demonstrativo visual (HTML)"
-                      >
-                        <FileText className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(r.id)}
-                        className="ml-auto rounded-md p-1.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
-                        title="Excluir"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-                      </button>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-
-          {active && (
-            <div className="mt-6">
-              <label className="flex cursor-pointer items-center justify-between rounded-xl border border-border bg-surface p-3 text-xs">
-                <span className="flex items-center gap-2">
-                  <span className="grid h-7 w-7 place-items-center rounded-md bg-accent/15 text-accent">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                      <path d="M21 12a9 9 0 1 1-3-6.7" />
-                      <path d="M21 4v5h-5" />
-                    </svg>
-                  </span>
-                  <span>
-                    <span className="block font-medium text-foreground">Trajeto cíclico</span>
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      fecha o percurso no início
-                    </span>
-                  </span>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={!!active.cyclic}
-                  onChange={(e) =>
-                    updateActive((r) => ({ ...r, cyclic: e.target.checked }))
-                  }
-                  className="h-4 w-4 accent-primary"
-                />
-              </label>
-            </div>
-          )}
-
-          <div className="mt-3 space-y-2">
-            <div className="rounded-xl border border-border bg-surface p-3">
-              <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} />
-                <p>
-                  <span className="font-medium text-foreground">Dica:</span>{" "}
-                  clique no mapa para adicionar um waypoint. Arraste os
-                  marcadores para reposicioná-los.
-                </p>
-              </div>
-            </div>
-            <div className="rounded-xl border border-border bg-surface p-3">
-              <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                <FileJson className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} />
-                <p>
-                  <span className="font-medium text-foreground">Downloads:</span>{" "}
-                  <span className="font-mono text-[10px] uppercase">JSON</span> reimportável
-                  e <span className="font-mono text-[10px] uppercase">HTML</span> visual
-                  (com mapa, ícones e todas as orientações — imprimível como PDF).
-                </p>
-              </div>
-            </div>
-          </div>
+        {/* Routes sidebar (desktop) */}
+        <aside className="hidden border-r border-border bg-sidebar/60 p-4 backdrop-blur lg:sticky lg:top-16 lg:block lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
+          {routesPanel}
         </aside>
 
         {/* Map */}
-        <section className="relative h-[60vh] lg:h-[calc(100vh-4rem)]">
+        <section className="relative h-[calc(100vh-4rem-3.5rem)] lg:h-[calc(100vh-4rem)]">
           {active ? (
             <Suspense
               fallback={
@@ -488,102 +648,54 @@ function GestorPageInner() {
           )}
         </section>
 
-        {/* Waypoint editor */}
-        <aside className="border-l border-border bg-sidebar/60 backdrop-blur lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
-          <AnimatePresence mode="wait">
-            {selectedWp && active ? (
-              <motion.div
-                key={selectedWp.id}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.2 }}
-                className="space-y-5 p-5"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Settings2 className="h-4 w-4 text-primary" strokeWidth={1.75} />
-                    <h3 className="text-sm font-semibold uppercase tracking-wider">
-                      Editar waypoint
-                    </h3>
-                  </div>
-                  <button
-                    onClick={() => setSelectedWpId(null)}
-                    className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  >
-                    <X className="h-4 w-4" strokeWidth={1.75} />
-                  </button>
-                </div>
-
-                <WaypointForm
-                  key={selectedWp.id}
-                  wp={selectedWp}
-                  onChange={(patch) => updateWaypoint(selectedWp.id, patch)}
-                  onRemove={() => removeWaypoint(selectedWp.id)}
-                />
-              </motion.div>
-            ) : active ? (
-              <motion.div
-                key="list"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="p-5"
-              >
-                <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                    Waypoints
-                  </h3>
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {active.waypoints.length}
-                  </span>
-                </div>
-                {active.waypoints.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border p-6 text-center">
-                    <MapPin
-                      className="mx-auto h-8 w-8 text-muted-foreground"
-                      strokeWidth={1.5}
-                    />
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      Clique no mapa para adicionar o primeiro ponto.
-                    </p>
-                  </div>
-                ) : (
-                  <ol className="space-y-2">
-                    {active.waypoints.map((w, i) => {
-                      const Icon = maneuverIcon[w.maneuver];
-                      return (
-                        <li key={w.id}>
-                          <button
-                            onClick={() => setSelectedWpId(w.id)}
-                            className="flex w-full items-start gap-3 rounded-lg border border-border bg-surface p-3 text-left transition-all hover:border-primary/50 hover:bg-surface-2"
-                          >
-                            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-primary/15 text-primary">
-                              <Icon className="h-4 w-4" strokeWidth={1.75} />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                                  #{i + 1} · {maneuverLabel(w.maneuver)}
-                                </span>
-                              </div>
-                              <p className="mt-1 line-clamp-2 text-xs text-foreground/90">
-                                {w.instruction}
-                              </p>
-                              <div className="mt-1.5 flex gap-3 font-mono text-[10px] text-muted-foreground">
-                                <span>{w.suggestedGear}</span>
-                                <span>{w.maxSpeed} km/h</span>
-                              </div>
-                            </div>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ol>
-                )}
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
+        {/* Waypoint editor (desktop) */}
+        <aside className="hidden border-l border-border bg-sidebar/60 p-5 backdrop-blur lg:sticky lg:top-16 lg:block lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
+          {editorPanel}
         </aside>
+      </div>
+
+      {/* Bottom action bar (mobile only) */}
+      <div className="sticky bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur lg:hidden">
+        <div className="flex h-14 items-center justify-between gap-2 px-3">
+          <Sheet open={routesSheetOpen} onOpenChange={setRoutesSheetOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="sm" className="flex-1 gap-2">
+                <Layers className="h-4 w-4" strokeWidth={1.75} />
+                <span className="truncate">{active?.name ?? "Rotas"}</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[88vw] max-w-sm overflow-y-auto p-5">
+              <SheetHeader className="mb-4 text-left">
+                <SheetTitle>Rotas e configurações</SheetTitle>
+              </SheetHeader>
+              {routesPanel}
+            </SheetContent>
+          </Sheet>
+
+          <Sheet open={editorSheetOpen} onOpenChange={setEditorSheetOpen}>
+            <SheetTrigger asChild>
+              <Button size="sm" className="flex-1 gap-2">
+                {selectedWp ? (
+                  <>
+                    <Settings2 className="h-4 w-4" strokeWidth={1.75} />
+                    Editar ponto
+                  </>
+                ) : (
+                  <>
+                    <List className="h-4 w-4" strokeWidth={1.75} />
+                    Waypoints ({active?.waypoints.length ?? 0})
+                  </>
+                )}
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[92vw] max-w-md overflow-y-auto p-5">
+              <SheetHeader className="mb-4 text-left">
+                <SheetTitle>{selectedWp ? "Editar waypoint" : "Lista de waypoints"}</SheetTitle>
+              </SheetHeader>
+              {editorPanel}
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
     </div>
   );
@@ -591,12 +703,20 @@ function GestorPageInner() {
 
 function WaypointForm({
   wp,
+  index,
+  total,
   onChange,
   onRemove,
+  onDuplicate,
+  onMove,
 }: {
   wp: Waypoint;
+  index: number;
+  total: number;
   onChange: (patch: Partial<Waypoint>) => void;
   onRemove: () => void;
+  onDuplicate: () => void;
+  onMove: (dir: -1 | 1) => void;
 }) {
   const [draft, setDraft] = useState(wp);
   useEffect(() => setDraft(wp), [wp]);
@@ -605,13 +725,34 @@ function WaypointForm({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 p-3">
-        <div className="grid h-10 w-10 place-items-center rounded-md bg-primary/15 text-primary">
-          <Icon className="h-5 w-5" strokeWidth={1.75} />
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-2 p-3">
+        <div className="flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-md bg-primary/15 text-primary">
+            <Icon className="h-5 w-5" strokeWidth={1.75} />
+          </div>
+          <div className="min-w-0 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+            <div>#{index + 1}/{total}</div>
+            <div>lat {draft.lat.toFixed(5)}</div>
+            <div>lng {draft.lng.toFixed(5)}</div>
+          </div>
         </div>
-        <div className="min-w-0 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          <div>lat {draft.lat.toFixed(5)}</div>
-          <div>lng {draft.lng.toFixed(5)}</div>
+        <div className="flex flex-col gap-1">
+          <button
+            onClick={() => onMove(-1)}
+            disabled={index === 0}
+            className="grid h-7 w-7 place-items-center rounded-md border border-border bg-surface text-muted-foreground transition-colors hover:bg-secondary disabled:opacity-30"
+            title="Mover para cima"
+          >
+            <ArrowUp className="h-3.5 w-3.5" strokeWidth={1.75} />
+          </button>
+          <button
+            onClick={() => onMove(1)}
+            disabled={index === total - 1}
+            className="grid h-7 w-7 place-items-center rounded-md border border-border bg-surface text-muted-foreground transition-colors hover:bg-secondary disabled:opacity-30"
+            title="Mover para baixo"
+          >
+            <ArrowDown className="h-3.5 w-3.5" strokeWidth={1.75} />
+          </button>
         </div>
       </div>
 
@@ -626,6 +767,9 @@ function WaypointForm({
           placeholder="Ex.: Vire à direita na Av. Wilson Tavares"
           className="mt-1.5"
         />
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          {draft.instruction.length} caracteres · será lida em voz alta no modo motorista
+        </p>
       </div>
 
       <div>
@@ -634,9 +778,7 @@ function WaypointForm({
         </Label>
         <Select
           value={draft.maneuver}
-          onValueChange={(v) =>
-            setDraft({ ...draft, maneuver: v as ManeuverType })
-          }
+          onValueChange={(v) => setDraft({ ...draft, maneuver: v as ManeuverType })}
         >
           <SelectTrigger className="mt-1.5">
             <SelectValue />
@@ -657,37 +799,66 @@ function WaypointForm({
         </Select>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
+      <div>
+        <div className="flex items-baseline justify-between">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-            Marcha
+            Velocidade máxima
           </Label>
-          <Input
-            value={draft.suggestedGear}
-            onChange={(e) =>
-              setDraft({ ...draft, suggestedGear: e.target.value })
-            }
-            className="mt-1.5 font-mono"
-          />
+          <span className="font-mono text-sm font-semibold tabular-nums">
+            {draft.maxSpeed} <span className="text-[10px] text-muted-foreground">km/h</span>
+          </span>
         </div>
-        <div>
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-            Vel. máx (km/h)
-          </Label>
-          <Input
-            type="number"
-            value={draft.maxSpeed}
-            onChange={(e) =>
-              setDraft({ ...draft, maxSpeed: Number(e.target.value) || 0 })
-            }
-            className="mt-1.5 font-mono"
-          />
+        <Slider
+          value={[draft.maxSpeed]}
+          min={10}
+          max={110}
+          step={5}
+          onValueChange={([v]) => setDraft({ ...draft, maxSpeed: v })}
+          className="mt-3"
+        />
+        <div className="mt-1 flex justify-between font-mono text-[9px] text-muted-foreground">
+          <span>10</span>
+          <span>40</span>
+          <span>60</span>
+          <span>80</span>
+          <span>110</span>
         </div>
       </div>
 
       <div>
         <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-          Observação
+          Marcha sugerida
+        </Label>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {GEAR_PRESETS.map((g) => {
+            const sel = draft.suggestedGear === g;
+            return (
+              <button
+                key={g}
+                type="button"
+                onClick={() => setDraft({ ...draft, suggestedGear: g })}
+                className={`rounded-md border px-2.5 py-1 font-mono text-xs transition-colors ${
+                  sel
+                    ? "border-primary bg-primary/15 text-primary"
+                    : "border-border bg-surface text-muted-foreground hover:border-border/80 hover:text-foreground"
+                }`}
+              >
+                {g}
+              </button>
+            );
+          })}
+        </div>
+        <Input
+          value={draft.suggestedGear}
+          onChange={(e) => setDraft({ ...draft, suggestedGear: e.target.value })}
+          className="mt-2 h-8 font-mono text-xs"
+          placeholder="Personalizada (ex.: 2ª→3ª)"
+        />
+      </div>
+
+      <div>
+        <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+          Observação (falada como alerta)
         </Label>
         <Textarea
           rows={2}
@@ -698,15 +869,18 @@ function WaypointForm({
         />
       </div>
 
-      <div className="flex gap-2 pt-2">
+      <div className="flex flex-wrap gap-2 pt-2">
         <Button
           className="flex-1 gap-2"
           onClick={() => {
             onChange(draft);
-            toast.success("Waypoint atualizado");
+            toast.success("Waypoint salvo");
           }}
         >
           <Save className="h-4 w-4" strokeWidth={2} /> Salvar
+        </Button>
+        <Button variant="outline" onClick={onDuplicate} className="gap-2">
+          <Copy className="h-4 w-4" strokeWidth={2} /> Duplicar
         </Button>
         <Button
           variant="outline"
@@ -719,7 +893,7 @@ function WaypointForm({
 
       <div className="flex items-center gap-2 rounded-lg border border-border bg-surface p-3 text-xs text-muted-foreground">
         <Gauge className="h-4 w-4 text-accent" strokeWidth={1.75} />
-        Esta orientação será falada no modo Motorista.
+        Esta orientação será falada no modo Motorista, com pausa para escuta.
       </div>
     </div>
   );
