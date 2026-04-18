@@ -497,7 +497,7 @@ function GestorPageInner() {
         </aside>
 
         {/* Map */}
-        <section className="relative h-[60vh] lg:h-[calc(100vh-4rem)]">
+        <section className="relative h-[calc(100vh-4rem-3.5rem)] lg:h-[calc(100vh-4rem)]">
           {active ? (
             <Suspense
               fallback={
