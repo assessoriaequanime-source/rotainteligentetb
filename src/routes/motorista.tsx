@@ -36,7 +36,7 @@ import {
 import { toast } from "sonner";
 import { useSpeech, estimateSpeechDurationMs } from "@/hooks/useSpeech";
 import { useGeolocation, distanceMeters } from "@/hooks/useGeolocation";
-import { downloadRouteDemo, downloadRouteVisual } from "@/lib/export";
+import { downloadRouteDemo, downloadRouteVisual, openRouteInGoogleMaps } from "@/lib/export";
 
 const RouteMap = lazy(() => import("@/components/RouteMap"));
 
