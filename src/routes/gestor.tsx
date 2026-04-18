@@ -362,6 +362,13 @@ function GestorPage() {
                         <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
                       </button>
                       <button
+                        onClick={() => handleExportRoute(r)}
+                        className="rounded-md p-1.5 text-muted-foreground hover:bg-primary/15 hover:text-primary"
+                        title="Baixar (modelo demonstrativo)"
+                      >
+                        <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      </button>
+                      <button
                         onClick={() => handleDelete(r.id)}
                         className="ml-auto rounded-md p-1.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
                         title="Excluir"
